@@ -1007,10 +1007,14 @@ void Updates::updateOnline(crl::time lastNonIdleTime, bool gotOtherOffline) {
 			Assert(updateIn >= 0);
 		}
 	}
+	constexpr auto kGhostOfflineReassertEvery = crl::time(15000);
 	auto ms = crl::now();
+	const auto ghostForceOffline = Netugram::GhostMode()
+		&& (_lastSetOnline + kGhostOfflineReassertEvery <= ms);
 	if (isOnline != _lastWasOnline
 		|| (isOnline && _lastSetOnline + config.onlineUpdatePeriod <= ms)
-		|| (isOnline && gotOtherOffline)) {
+		|| (isOnline && gotOtherOffline)
+		|| ghostForceOffline) {
 		api().request(base::take(_onlineRequest)).cancel();
 
 		_lastWasOnline = isOnline;
@@ -1045,6 +1049,9 @@ void Updates::updateOnline(crl::time lastNonIdleTime, bool gotOtherOffline) {
 	} else if (isOnline) {
 		updateIn = qMin(updateIn, int(_lastSetOnline + config.onlineUpdatePeriod - ms));
 		Assert(updateIn >= 0);
+	}
+	if (Netugram::GhostMode()) {
+		updateIn = qMin(updateIn, int(kGhostOfflineReassertEvery));
 	}
 	_onlineTimer.callOnce(updateIn);
 }
