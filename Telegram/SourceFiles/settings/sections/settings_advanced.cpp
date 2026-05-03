@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/sections/settings_advanced.h"
 
+#include "netugram/netugram_prefs.h"
 #include "settings/settings_common_session.h"
 
 #include "api/api_global_privacy.h"
@@ -62,11 +63,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/labels.h"
 #include "ui/wrap/slide_wrap.h"
 #include "ui/wrap/vertical_layout.h"
+#include "window/themes/window_theme.h"
+#include "window/themes/window_themes_embedded.h"
 #include "window/window_controller.h"
 #include "window/window_session_controller.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "styles/style_settings.h"
+
+#include <QtWidgets/QColorDialog>
 
 #ifdef Q_OS_MAC
 #include "base/platform/mac/base_confirm_quit.h"
@@ -823,6 +828,130 @@ void BuildOpenGLOption(SectionBuilder &builder) {
 }
 #endif
 
+void BuildNetugramSection(SectionBuilder &builder) {
+	const auto controller = builder.controller();
+
+	builder.addDivider();
+	builder.addSkip();
+	builder.addSubsectionTitle({
+		.id = u"advanced/netugram"_q,
+		.title = tr::lng_settings_netugram_section(),
+		.keywords = {
+			u"netugram"_q,
+			u"ghost"_q,
+			u"stealth"_q,
+			u"deleted"_q,
+			u"read"_q,
+			u"accent"_q,
+		},
+	});
+
+	const auto ghost = builder.addButton({
+		.id = u"advanced/netugram_ghost"_q,
+		.title = tr::lng_settings_netugram_ghost(),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(Netugram::GhostMode()),
+		.keywords = { u"ghost"_q, u"online"_q, u"stealth"_q },
+	});
+	if (ghost) {
+		ghost->toggledValue(
+		) | rpl::filter([=](bool enabled) {
+			return enabled != Netugram::GhostMode();
+		}) | rpl::on_next([=](bool enabled) {
+			Netugram::SetGhostMode(enabled);
+		}, ghost->lifetime());
+	}
+
+	const auto noRead = builder.addButton({
+		.id = u"advanced/netugram_no_read"_q,
+		.title = tr::lng_settings_netugram_no_read(),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(Netugram::NoReadHistory()),
+		.keywords = { u"read"_q, u"unread"_q, u"receipt"_q },
+	});
+	if (noRead) {
+		noRead->toggledValue(
+		) | rpl::filter([=](bool enabled) {
+			return enabled != Netugram::NoReadHistory();
+		}) | rpl::on_next([=](bool enabled) {
+			Netugram::SetNoReadHistory(enabled);
+		}, noRead->lifetime());
+	}
+
+	const auto keepDeleted = builder.addButton({
+		.id = u"advanced/netugram_keep_deleted"_q,
+		.title = tr::lng_settings_netugram_keep_deleted(),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(Netugram::KeepDeleted()),
+		.keywords = { u"deleted"_q, u"trash"_q, u"recover"_q },
+	});
+	if (keepDeleted) {
+		keepDeleted->toggledValue(
+		) | rpl::filter([=](bool enabled) {
+			return enabled != Netugram::KeepDeleted();
+		}) | rpl::on_next([=](bool enabled) {
+			Netugram::SetKeepDeleted(enabled);
+		}, keepDeleted->lifetime());
+	}
+
+	builder.addButton({
+		.id = u"advanced/netugram_accent"_q,
+		.title = tr::lng_settings_netugram_accent(),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			using namespace Window::Theme;
+			const auto current = st::windowBgActive->c;
+			QWidget *parent = controller
+				? static_cast<QWidget*>(controller->widget().get())
+				: nullptr;
+			const auto picked = QColorDialog::getColor(
+				current,
+				parent,
+				tr::lng_settings_netugram_accent(tr::now));
+			if (!picked.isValid()) {
+				return;
+			}
+			const auto schemes = EmbeddedThemes();
+			const auto &object = Background()->themeObject();
+			auto type = std::optional<EmbeddedType>();
+			QString path;
+			for (const auto &scheme : schemes) {
+				if (object.pathAbsolute == scheme.path) {
+					type = scheme.type;
+					path = scheme.path;
+					break;
+				}
+			}
+			if (!type) {
+				type = IsNightMode()
+					? EmbeddedType::Night
+					: EmbeddedType::Default;
+				const auto i = ranges::find(
+					schemes,
+					*type,
+					&EmbeddedScheme::type);
+				if (i != end(schemes)) {
+					path = i->path;
+				}
+			}
+			auto &settings = Core::App().settings();
+			if (settings.systemAccentColorEnabled()) {
+				settings.setSystemAccentColorEnabled(false);
+			}
+			settings.themesAccentColors().set(*type, picked);
+			Local::writeSettings();
+			if (!path.isEmpty()) {
+				ApplyDefaultWithPath(path);
+				KeepApplied();
+			}
+		},
+		.keywords = { u"accent"_q, u"color"_q, u"palette"_q },
+	});
+
+	builder.addSkip();
+	builder.addDividerText(tr::lng_settings_netugram_about());
+}
+
 void BuildPerformanceSection(SectionBuilder &builder) {
 	const auto controller = builder.controller();
 	builder.addDivider();
@@ -1251,6 +1380,7 @@ const auto kMeta = BuildHelper({
 	BuildWindowCloseBehaviorSection(builder);
 #endif
 	BuildSystemIntegrationSection(builder);
+	BuildNetugramSection(builder);
 	BuildPerformanceSection(builder);
 	BuildSpellcheckerSection(builder);
 	BuildScreenReaderSection(builder);

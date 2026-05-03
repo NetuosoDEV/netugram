@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_session.h"
 
+#include "netugram/netugram_prefs.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
 #include "main/main_app_config.h"
@@ -2907,11 +2908,35 @@ void Session::processMessagesDeleted(
 		return;
 	}
 
+	const auto keepDeleted = Netugram::KeepDeleted();
 	auto historiesToCheck = base::flat_set<not_null<History*>>();
 	for (const auto &messageId : data) {
 		const auto i = list ? list->find(messageId.v) : Messages::iterator();
 		if (list && i != list->end()) {
 			const auto history = i->second->history();
+			if (keepDeleted) {
+				const auto item = i->second;
+				const auto &original = item->originalText();
+				const auto kMark = u"\xD83D\xDDD1 "_q;
+				if (!original.text.startsWith(kMark)) {
+					auto marked = TextWithEntities{
+						kMark + original.text,
+						original.entities,
+					};
+					for (auto &e : marked.entities) {
+						e = EntityInText(
+							e.type(),
+							e.offset() + kMark.size(),
+							e.length(),
+							e.data());
+					}
+					item->setText(std::move(marked));
+				}
+				LOG(("netugram: kept deleted message %1 in %2"
+					).arg(messageId.v
+					).arg(peerId.value));
+				continue;
+			}
 			i->second->destroy();
 			if (!history->chatListMessageKnown()) {
 				historiesToCheck.emplace(history);
@@ -2926,10 +2951,32 @@ void Session::processMessagesDeleted(
 }
 
 void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
+	const auto keepDeleted = Netugram::KeepDeleted();
 	auto historiesToCheck = base::flat_set<not_null<History*>>();
 	for (const auto &messageId : data) {
 		if (const auto item = nonChannelMessage(messageId.v)) {
 			const auto history = item->history();
+			if (keepDeleted) {
+				const auto &original = item->originalText();
+				const auto kMark = u"\xD83D\xDDD1 "_q;
+				if (!original.text.startsWith(kMark)) {
+					auto marked = TextWithEntities{
+						kMark + original.text,
+						original.entities,
+					};
+					for (auto &e : marked.entities) {
+						e = EntityInText(
+							e.type(),
+							e.offset() + kMark.size(),
+							e.length(),
+							e.data());
+					}
+					item->setText(std::move(marked));
+				}
+				LOG(("netugram: kept deleted non-channel message %1"
+					).arg(messageId.v));
+				continue;
+			}
 			item->destroy();
 			if (!history->chatListMessageKnown()) {
 				historiesToCheck.emplace(history);
