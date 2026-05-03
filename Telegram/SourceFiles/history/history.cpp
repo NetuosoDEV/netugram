@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history.h"
 
+#include "netugram/deleted_storage.h"
+#include "netugram/netugram_prefs.h"
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_item_preview.h"
 #include "history/view/history_view_translate_tracker.h"
@@ -1721,7 +1723,11 @@ void History::addEdgesToSharedMedia() {
 	}
 }
 
-void History::addOlderSlice(const QVector<MTPMessage> &slice) {
+void History::addOlderSlice(const QVector<MTPMessage> &sliceOriginal) {
+	auto slice = sliceOriginal;
+	if (Netugram::KeepDeleted()) {
+		Netugram::MergeDeletedIntoSlice(peer->id, slice);
+	}
 	if (slice.isEmpty()) {
 		_loadedAtTop = true;
 		checkLocalMessages();
@@ -1760,7 +1766,11 @@ void History::addCreatedOlderSlice(
 	addToSharedMedia(items);
 }
 
-void History::addNewerSlice(const QVector<MTPMessage> &slice) {
+void History::addNewerSlice(const QVector<MTPMessage> &sliceOriginal) {
+	auto slice = sliceOriginal;
+	if (Netugram::KeepDeleted()) {
+		Netugram::MergeDeletedIntoSlice(peer->id, slice);
+	}
 	bool wasLoadedAtBottom = loadedAtBottom();
 
 	if (slice.isEmpty()) {

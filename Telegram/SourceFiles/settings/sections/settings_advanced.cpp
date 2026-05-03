@@ -72,6 +72,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_settings.h"
 
 #include <QtWidgets/QColorDialog>
+#include <QtWidgets/QInputDialog>
 
 #ifdef Q_OS_MAC
 #include "base/platform/mac/base_confirm_quit.h"
@@ -893,6 +894,67 @@ void BuildNetugramSection(SectionBuilder &builder) {
 			Netugram::SetKeepDeleted(enabled);
 		}, keepDeleted->lifetime());
 	}
+
+	const auto localPremium = builder.addButton({
+		.id = u"advanced/netugram_local_premium"_q,
+		.title = tr::lng_settings_netugram_local_premium(),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(Netugram::LocalPremium()),
+		.keywords = { u"premium"_q, u"fake"_q, u"local"_q },
+	});
+	if (localPremium) {
+		localPremium->toggledValue(
+		) | rpl::filter([=](bool enabled) {
+			return enabled != Netugram::LocalPremium();
+		}) | rpl::on_next([=](bool enabled) {
+			Netugram::SetLocalPremium(enabled);
+		}, localPremium->lifetime());
+	}
+
+	const auto customStars = builder.addButton({
+		.id = u"advanced/netugram_custom_stars"_q,
+		.title = tr::lng_settings_netugram_custom_stars(),
+		.st = &st::settingsButtonNoIcon,
+		.toggled = rpl::single(Netugram::CustomStarsEnabled()),
+		.keywords = { u"stars"_q, u"balance"_q, u"fake"_q },
+	});
+	if (customStars) {
+		customStars->toggledValue(
+		) | rpl::filter([=](bool enabled) {
+			return enabled != Netugram::CustomStarsEnabled();
+		}) | rpl::on_next([=](bool enabled) {
+			Netugram::SetCustomStarsEnabled(enabled);
+		}, customStars->lifetime());
+	}
+
+	builder.addButton({
+		.id = u"advanced/netugram_custom_stars_amount"_q,
+		.title = tr::lng_settings_netugram_custom_stars_amount(),
+		.st = &st::settingsButtonNoIcon,
+		.onClick = [=] {
+			QWidget *parent = controller
+				? static_cast<QWidget*>(controller->widget().get())
+				: nullptr;
+			bool ok = false;
+			const auto current = int(qBound<qint64>(
+				0,
+				Netugram::CustomStarsAmount(),
+				qint64(std::numeric_limits<int>::max())));
+			const auto value = QInputDialog::getInt(
+				parent,
+				tr::lng_settings_netugram_custom_stars_amount(tr::now),
+				tr::lng_settings_netugram_custom_stars(tr::now),
+				current,
+				0,
+				std::numeric_limits<int>::max(),
+				1,
+				&ok);
+			if (ok) {
+				Netugram::SetCustomStarsAmount(qint64(value));
+			}
+		},
+		.keywords = { u"stars"_q, u"amount"_q },
+	});
 
 	builder.addButton({
 		.id = u"advanced/netugram_accent"_q,

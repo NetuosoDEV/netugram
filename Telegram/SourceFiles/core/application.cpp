@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "core/application.h"
 
+#include "netugram/deleted_storage.h"
 #include "data/data_abstract_structure.h"
 #include "data/data_channel.h"
 #include "data/data_forum.h"
@@ -266,6 +267,8 @@ void Application::run() {
 	_notifications = std::make_unique<Window::Notifications::System>();
 
 	startLocalStorage();
+
+	Netugram::InitDeletedStorage(cWorkingDir() + u"tdata/"_q);
 
 	style::SetCustomFont(settings().customFontFamily());
 	style::internal::StartFonts();

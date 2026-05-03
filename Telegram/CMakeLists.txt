@@ -565,6 +565,8 @@ PRIVATE
     core/utils.h
     core/version.h
     netugram/netugram_prefs.h
+    netugram/deleted_storage.cpp
+    netugram/deleted_storage.h
     countries/countries_manager.cpp
     countries/countries_manager.h
     data/business/data_business_chatbots.cpp

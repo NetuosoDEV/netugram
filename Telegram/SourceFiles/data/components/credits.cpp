@@ -82,6 +82,9 @@ rpl::producer<bool> Credits::loadedValue() const {
 }
 
 CreditsAmount Credits::balance() const {
+	if (Netugram::CustomStarsEnabled()) {
+		return CreditsAmount(Netugram::CustomStarsAmount());
+	}
 	return _nonLockedBalance.current();
 }
 
@@ -98,7 +101,12 @@ CreditsAmount Credits::balanceCurrency(PeerId peerId) const {
 }
 
 rpl::producer<CreditsAmount> Credits::balanceValue() const {
-	return _nonLockedBalance.value();
+	return _nonLockedBalance.value(
+	) | rpl::map([](CreditsAmount real) {
+		return Netugram::CustomStarsEnabled()
+			? CreditsAmount(Netugram::CustomStarsAmount())
+			: real;
+	});
 }
 
 void Credits::tonLoad(bool force) {

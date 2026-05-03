@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_user.h"
 
+#include "netugram/netugram_prefs.h"
 #include "api/api_credits.h"
 #include "api/api_global_privacy.h"
 #include "api/api_sensitive_content.h"
@@ -603,6 +604,9 @@ bool UserData::isFake() const {
 }
 
 bool UserData::isPremium() const {
+	if (isSelf() && Netugram::LocalPremium()) {
+		return true;
+	}
 	return flags() & UserDataFlag::Premium;
 }
 

@@ -1235,6 +1235,25 @@ void Settings::writePrefImpl<bool>(std::string_view key, bool value) {
 	writePrefGeneric(key, value ? "\x1"_q : QByteArray());
 }
 
+template <>
+std::optional<qint64> Settings::readPrefImpl<qint64>(std::string_view key) {
+	if (const auto data = readPrefGeneric(key)) {
+		if (data->size() == sizeof(qint64)) {
+			qint64 value = 0;
+			std::memcpy(&value, data->constData(), sizeof(qint64));
+			return value;
+		}
+	}
+	return {};
+}
+
+template <>
+void Settings::writePrefImpl<qint64>(std::string_view key, qint64 value) {
+	auto bytes = QByteArray(sizeof(qint64), Qt::Uninitialized);
+	std::memcpy(bytes.data(), &value, sizeof(qint64));
+	writePrefGeneric(key, bytes);
+}
+
 QString Settings::getSoundPath(const QString &key) const {
 	auto it = _soundOverrides.find(key);
 	if (it != _soundOverrides.end()) {

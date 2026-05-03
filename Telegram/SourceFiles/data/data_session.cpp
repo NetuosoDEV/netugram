@@ -7,6 +7,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_session.h"
 
+#include "netugram/deleted_storage.h"
 #include "netugram/netugram_prefs.h"
 #include "main/main_session.h"
 #include "main/main_session_settings.h"
@@ -2916,6 +2917,9 @@ void Session::processMessagesDeleted(
 			const auto history = i->second->history();
 			if (keepDeleted) {
 				const auto item = i->second;
+				Netugram::DeletedStorage::Instance().persistDeleted(
+					peerId,
+					messageId.v);
 				const auto &original = item->originalText();
 				const auto kMark = u"\xD83D\xDDD1 "_q;
 				if (!original.text.startsWith(kMark)) {
@@ -2957,6 +2961,9 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 		if (const auto item = nonChannelMessage(messageId.v)) {
 			const auto history = item->history();
 			if (keepDeleted) {
+				Netugram::DeletedStorage::Instance().persistDeleted(
+					history->peer->id,
+					messageId.v);
 				const auto &original = item->originalText();
 				const auto kMark = u"\xD83D\xDDD1 "_q;
 				if (!original.text.startsWith(kMark)) {
@@ -3158,6 +3165,12 @@ HistoryItem *Session::addNewMessage(
 	const auto peerId = PeerFromMessage(data);
 	if (!peerId || data.type() == mtpc_messageEmpty) {
 		return nullptr;
+	}
+	if (Netugram::KeepDeleted() && IsServerMsgId(id)) {
+		Netugram::DeletedStorage::Instance().rememberArrival(
+			peerId,
+			id,
+			Netugram::SerializeMtpMessage(data));
 	}
 
 	if (data.type() == mtpc_message) {

@@ -852,8 +852,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "lng_settings_netugram_ghost" = "Ghost mode (always appear offline)";
 "lng_settings_netugram_no_read" = "Don't mark messages as read";
 "lng_settings_netugram_keep_deleted" = "Show deleted messages";
+"lng_settings_netugram_local_premium" = "Local Premium status";
+"lng_settings_netugram_custom_stars" = "Custom Stars balance";
+"lng_settings_netugram_custom_stars_amount" = "Set custom Stars amount";
 "lng_settings_netugram_accent" = "Accent color";
-"lng_settings_netugram_about" = "Ghost mode hides your online status. The no-read mode never tells the server you opened a chat. Deleted messages stay visible locally and are marked with a trash icon. Accent color overrides the active theme palette.";
+"lng_settings_netugram_about" = "Ghost mode hides your online status. The no-read mode never tells the server you opened a chat. Deleted messages stay visible locally and are marked with a trash icon. Local Premium and custom Stars balance only affect what you see. Accent color overrides the active theme palette.";
 "lng_settings_stickers_emoji" = "Stickers and emoji";
 "lng_settings_messages" = "Messages";
 "lng_settings_themes" = "Themes";
