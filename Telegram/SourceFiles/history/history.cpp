@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "history/history.h"
 
 #include "netugram/deleted_storage.h"
+#include "netugram/edit_storage.h"
 #include "netugram/netugram_prefs.h"
 #include "history/view/history_view_element.h"
 #include "history/view/history_view_item_preview.h"
@@ -509,6 +510,12 @@ not_null<HistoryItem*> History::createItem(
 		bool detachExistingItem,
 		bool newMessage) {
 	owner().fillMessagePeers(peer->id, message);
+	if (Netugram::KeepDeleted() && IsServerMsgId(id)) {
+		Netugram::DeletedStorage::Instance().rememberArrival(
+			peer->id,
+			id,
+			Netugram::SerializeMtpMessage(message));
+	}
 	if (const auto result = owner().message(peer, id)) {
 		if (detachExistingItem) {
 			result->removeMainView();
@@ -526,6 +533,14 @@ not_null<HistoryItem*> History::createItem(
 		if (result->starsPaid()) {
 			session().credits().load(true);
 		}
+	}
+	if (Netugram::KeepEdited()
+		&& IsServerMsgId(id)
+		&& !result->Has<HistoryMessageEdited>()) {
+		Netugram::EditStorage::Instance().rememberOriginal(
+			peer->id,
+			id,
+			result->originalText());
 	}
 	return result;
 }
@@ -1725,11 +1740,14 @@ void History::addEdgesToSharedMedia() {
 
 void History::addOlderSlice(const QVector<MTPMessage> &sliceOriginal) {
 	auto slice = sliceOriginal;
+	auto injected = std::vector<MsgId>();
 	if (Netugram::KeepDeleted()) {
-		Netugram::MergeDeletedIntoSlice(peer->id, slice);
+		injected = Netugram::MergeDeletedIntoSlice(this, slice, true);
+	}
+	if (sliceOriginal.isEmpty()) {
+		_loadedAtTop = true;
 	}
 	if (slice.isEmpty()) {
-		_loadedAtTop = true;
 		checkLocalMessages();
 		return;
 	}
@@ -1741,6 +1759,7 @@ void History::addOlderSlice(const QVector<MTPMessage> &sliceOriginal) {
 		_loadedAtTop = true;
 		addEdgesToSharedMedia();
 	}
+	Netugram::MarkItemsDeleted(this, injected);
 	checkLocalMessages();
 	checkLastMessage();
 }
@@ -1768,12 +1787,13 @@ void History::addCreatedOlderSlice(
 
 void History::addNewerSlice(const QVector<MTPMessage> &sliceOriginal) {
 	auto slice = sliceOriginal;
+	auto injected = std::vector<MsgId>();
 	if (Netugram::KeepDeleted()) {
-		Netugram::MergeDeletedIntoSlice(peer->id, slice);
+		injected = Netugram::MergeDeletedIntoSlice(this, slice, false);
 	}
 	bool wasLoadedAtBottom = loadedAtBottom();
 
-	if (slice.isEmpty()) {
+	if (sliceOriginal.isEmpty()) {
 		_loadedAtBottom = true;
 		if (!lastMessage()) {
 			setLastMessage(lastAvailableMessage());
@@ -1793,6 +1813,7 @@ void History::addNewerSlice(const QVector<MTPMessage> &sliceOriginal) {
 		setLastMessage(lastAvailableMessage());
 		addEdgesToSharedMedia();
 	}
+	Netugram::MarkItemsDeleted(this, injected);
 
 	if (!wasLoadedAtBottom) {
 		checkAddAllToUnreadMentions();

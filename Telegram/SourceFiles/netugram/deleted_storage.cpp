@@ -7,8 +7,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "netugram/deleted_storage.h"
 
 #include "base/flat_set.h"
+#include "data/data_peer.h"
+#include "data/data_session.h"
 #include "data/data_types.h"
+#include "history/history.h"
+#include "history/history_item.h"
 #include "logs.h"
+#include "ui/text/text_entity.h"
 
 #include <QtCore/QDataStream>
 #include <QtCore/QDir>
@@ -109,7 +114,10 @@ void DeletedStorage::loadIfNeeded() {
 		}
 		const auto peer = PeerId(peerRaw);
 		const auto msg = MsgId(msgRaw);
-		_persisted[peer].push_back({ msg, std::move(blob) });
+		auto &bucket = _persisted[peer];
+		if (ranges::find(bucket, msg, &Entry::msgId) == end(bucket)) {
+			bucket.push_back({ msg, std::move(blob) });
+		}
 	}
 	LOG(("netugram: loaded %1 peers with deleted messages."
 		).arg(int(_persisted.size())));
@@ -160,6 +168,10 @@ void DeletedStorage::rememberArrival(
 void DeletedStorage::persistDeleted(PeerId peer, MsgId msg) {
 	QMutexLocker lock(&_mutex);
 	loadIfNeeded();
+	auto &stored = _persisted[peer];
+	if (ranges::find(stored, msg, &Entry::msgId) != end(stored)) {
+		return;
+	}
 	const auto i = _arrivalCache.find(peer);
 	if (i == _arrivalCache.end()) {
 		return;
@@ -171,7 +183,7 @@ void DeletedStorage::persistDeleted(PeerId peer, MsgId msg) {
 	auto entry = std::move(*j);
 	i->second.erase(j);
 	appendRecord(peer, entry);
-	_persisted[peer].push_back(std::move(entry));
+	stored.push_back(std::move(entry));
 }
 
 std::vector<MTPMessage> DeletedStorage::take(
@@ -210,29 +222,109 @@ void InitDeletedStorage(const QString &tdataPath) {
 	DeletedStorage::Instance().setBasePath(tdataPath);
 }
 
-void MergeDeletedIntoSlice(
-		PeerId peer,
-		QVector<MTPMessage> &slice) {
-	if (!peer) {
-		return;
+std::vector<MsgId> MergeDeletedIntoSlice(
+		not_null<History*> history,
+		QVector<MTPMessage> &slice,
+		bool older) {
+	const auto peerId = history->peer->id;
+	if (!peerId) {
+		return {};
 	}
-	auto stored = DeletedStorage::Instance().take(
-		peer,
-		MsgId(1),
-		MsgId(ServerMaxMsgId));
+	auto sliceMin = MsgId(ServerMaxMsgId - 1);
+	auto sliceMax = MsgId(0);
+	for (const auto &message : slice) {
+		const auto id = IdFromMessage(message);
+		sliceMin = std::min(sliceMin, id);
+		sliceMax = std::max(sliceMax, id);
+	}
+	auto from = MsgId(1);
+	auto till = MsgId(ServerMaxMsgId - 1);
+	const auto historyMin = history->minMsgId();
+	const auto historyMax = history->maxMsgId();
+	if (older) {
+		if (historyMin) {
+			till = historyMin - 1;
+		}
+		if (!slice.isEmpty()) {
+			from = sliceMin;
+		}
+	} else {
+		if (historyMax) {
+			from = historyMax + 1;
+		}
+		if (!slice.isEmpty()) {
+			till = sliceMax;
+		}
+	}
+	if (from > till) {
+		return {};
+	}
+	auto stored = DeletedStorage::Instance().take(peerId, from, till);
 	if (stored.empty()) {
-		return;
+		return {};
 	}
 	auto present = base::flat_set<MsgId>();
 	for (const auto &message : slice) {
 		present.emplace(IdFromMessage(message));
 	}
+	const auto owner = &history->owner();
+	auto injected = std::vector<MsgId>();
 	for (auto &message : stored) {
 		const auto id = IdFromMessage(message);
 		if (present.contains(id)) {
 			continue;
 		}
+		const auto existing = owner->message(peerId, id);
+		if (existing && existing->mainView()) {
+			continue;
+		}
+		present.emplace(id);
 		slice.push_back(std::move(message));
+		injected.push_back(id);
+	}
+	if (injected.empty()) {
+		return {};
+	}
+	ranges::sort(slice, ranges::greater(), [](const MTPMessage &message) {
+		return IdFromMessage(message);
+	});
+	LOG(("netugram: injected %1 deleted messages into %2 slice for %3"
+		).arg(int(injected.size())
+		).arg(older ? u"older"_q : u"newer"_q
+		).arg(peerId.value));
+	return injected;
+}
+
+bool MarkItemDeleted(not_null<HistoryItem*> item) {
+	static const auto kMark = u"\xD83D\xDDD1 "_q;
+	const auto &original = item->originalText();
+	if (original.text.startsWith(kMark)) {
+		return false;
+	}
+	auto marked = TextWithEntities{
+		kMark + original.text,
+		original.entities,
+	};
+	for (auto &entity : marked.entities) {
+		entity = EntityInText(
+			entity.type(),
+			entity.offset() + kMark.size(),
+			entity.length(),
+			entity.data());
+	}
+	item->setText(std::move(marked));
+	return true;
+}
+
+void MarkItemsDeleted(
+		not_null<History*> history,
+		const std::vector<MsgId> &ids) {
+	const auto owner = &history->owner();
+	const auto peerId = history->peer->id;
+	for (const auto &id : ids) {
+		if (const auto item = owner->message(peerId, id)) {
+			MarkItemDeleted(item);
+		}
 	}
 }
 

@@ -2916,26 +2916,10 @@ void Session::processMessagesDeleted(
 		if (list && i != list->end()) {
 			const auto history = i->second->history();
 			if (keepDeleted) {
-				const auto item = i->second;
 				Netugram::DeletedStorage::Instance().persistDeleted(
 					peerId,
 					messageId.v);
-				const auto &original = item->originalText();
-				const auto kMark = u"\xD83D\xDDD1 "_q;
-				if (!original.text.startsWith(kMark)) {
-					auto marked = TextWithEntities{
-						kMark + original.text,
-						original.entities,
-					};
-					for (auto &e : marked.entities) {
-						e = EntityInText(
-							e.type(),
-							e.offset() + kMark.size(),
-							e.length(),
-							e.data());
-					}
-					item->setText(std::move(marked));
-				}
+				Netugram::MarkItemDeleted(i->second);
 				LOG(("netugram: kept deleted message %1 in %2"
 					).arg(messageId.v
 					).arg(peerId.value));
@@ -2964,22 +2948,7 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 				Netugram::DeletedStorage::Instance().persistDeleted(
 					history->peer->id,
 					messageId.v);
-				const auto &original = item->originalText();
-				const auto kMark = u"\xD83D\xDDD1 "_q;
-				if (!original.text.startsWith(kMark)) {
-					auto marked = TextWithEntities{
-						kMark + original.text,
-						original.entities,
-					};
-					for (auto &e : marked.entities) {
-						e = EntityInText(
-							e.type(),
-							e.offset() + kMark.size(),
-							e.length(),
-							e.data());
-					}
-					item->setText(std::move(marked));
-				}
+				Netugram::MarkItemDeleted(item);
 				LOG(("netugram: kept deleted non-channel message %1"
 					).arg(messageId.v));
 				continue;
@@ -3165,12 +3134,6 @@ HistoryItem *Session::addNewMessage(
 	const auto peerId = PeerFromMessage(data);
 	if (!peerId || data.type() == mtpc_messageEmpty) {
 		return nullptr;
-	}
-	if (Netugram::KeepDeleted() && IsServerMsgId(id)) {
-		Netugram::DeletedStorage::Instance().rememberArrival(
-			peerId,
-			id,
-			Netugram::SerializeMtpMessage(data));
 	}
 
 	if (data.type() == mtpc_message) {

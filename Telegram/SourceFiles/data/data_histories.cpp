@@ -9,6 +9,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "netugram/netugram_prefs.h"
 #include "api/api_text_entities.h"
+#include "api/api_updates.h"
 #include "data/business/data_shortcut_messages.h"
 #include "data/components/scheduled_messages.h"
 #include "data/data_channel.h"
@@ -1132,6 +1133,7 @@ int Histories::sendPreparedMessage(
 					const MTPUpdates &result,
 					const MTP::Response &response) {
 				api->applyUpdates(result, randomId);
+				session->updates().reassertGhostOffline();
 				done(result, response);
 				finish();
 			}).fail([=](

@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "history/history_item.h"
 
+#include "netugram/edit_storage.h"
+#include "netugram/netugram_prefs.h"
 #include "api/api_premium.h"
 #include "api/api_sensitive_content.h"
 #include "api/api_transcribes.h"
@@ -2065,6 +2067,7 @@ void HistoryItem::applyEdition(HistoryMessageEdition &&edition) {
 	//	}
 	//}
 
+	const auto alreadyEdited = Has<HistoryMessageEdited>();
 	const auto editingMedia = isEditingMedia();
 	const auto updatingSavedLocalEdit = !edition.savePreviousMedia
 		&& editingMedia;
@@ -2147,6 +2150,12 @@ void HistoryItem::applyEdition(HistoryMessageEdition &&edition) {
 	} else if (!serviceText.text.empty()) {
 		setServiceText(std::move(serviceText));
 		addToSharedMediaIndex();
+	} else if (auto edited = composeKeptEditText(
+			updatedText,
+			alreadyEdited,
+			(edition.editDate != -1))) {
+		setText(std::move(*edited));
+		addToSharedMediaIndex();
 	} else {
 		setText(std::move(updatedText));
 		addToSharedMediaIndex();
@@ -2214,6 +2223,31 @@ void HistoryItem::applyChanges(not_null<Data::Story*> story) {
 	setStoryFields(story);
 
 	finishEdition(-1);
+}
+
+std::optional<TextWithEntities> HistoryItem::composeKeptEditText(
+		const TextWithEntities &edited,
+		bool alreadyEdited,
+		bool isEdit) {
+	if (!isEdit || !Netugram::KeepEdited() || !IsServerMsgId(id)) {
+		return std::nullopt;
+	}
+	const auto peerId = _history->peer->id;
+	auto &storage = Netugram::EditStorage::Instance();
+	auto original = storage.originalFor(peerId, id);
+	if (!original && !alreadyEdited) {
+		const auto &current = originalText();
+		if (!current.text.isEmpty()) {
+			original = current;
+		}
+	}
+	if (!original
+		|| original->text.isEmpty()
+		|| (original->text == edited.text)) {
+		return std::nullopt;
+	}
+	storage.rememberOriginal(peerId, id, *original);
+	return Netugram::BuildEditedText(*original, edited);
 }
 
 void HistoryItem::setStoryFields(not_null<Data::Story*> story) {

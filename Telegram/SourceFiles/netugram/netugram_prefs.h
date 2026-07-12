@@ -14,6 +14,7 @@ namespace Netugram {
 inline constexpr auto kGhostModeKey = "netugram/ghost_mode";
 inline constexpr auto kNoReadHistoryKey = "netugram/no_read_history";
 inline constexpr auto kKeepDeletedKey = "netugram/keep_deleted";
+inline constexpr auto kKeepEditedKey = "netugram/keep_edited";
 inline constexpr auto kLocalPremiumKey = "netugram/local_premium";
 inline constexpr auto kCustomStarsEnabledKey = "netugram/custom_stars_enabled";
 inline constexpr auto kCustomStarsAmountKey = "netugram/custom_stars_amount";
@@ -28,6 +29,10 @@ inline constexpr auto kCustomStarsAmountKey = "netugram/custom_stars_amount";
 
 [[nodiscard]] inline bool KeepDeleted() {
 	return Core::App().settings().readPref<bool>(kKeepDeletedKey);
+}
+
+[[nodiscard]] inline bool KeepEdited() {
+	return Core::App().settings().readPref<bool>(kKeepEditedKey);
 }
 
 [[nodiscard]] inline bool LocalPremium() {
@@ -54,6 +59,11 @@ inline void SetNoReadHistory(bool value) {
 
 inline void SetKeepDeleted(bool value) {
 	Core::App().settings().writePref<bool>(kKeepDeletedKey, value);
+	Core::App().saveSettingsDelayed();
+}
+
+inline void SetKeepEdited(bool value) {
+	Core::App().settings().writePref<bool>(kKeepEditedKey, value);
 	Core::App().saveSettingsDelayed();
 }
 

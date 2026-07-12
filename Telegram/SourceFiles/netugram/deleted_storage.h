@@ -9,11 +9,15 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/flat_map.h"
 #include "data/data_msg_id.h"
 #include "data/data_peer_id.h"
+#include "scheme.h"
 
 #include <QtCore/QByteArray>
 #include <QtCore/QMutex>
 #include <QtCore/QString>
 #include <vector>
+
+class History;
+class HistoryItem;
 
 namespace Netugram {
 
@@ -60,14 +64,22 @@ private:
 
 	static constexpr auto kMaxArrivalPerPeer = 2048;
 	static constexpr quint32 kMagic = 0x4E544748u; // "NTGH"
+
 };
 
 [[nodiscard]] QByteArray SerializeMtpMessage(const MTPMessage &message);
 
 void InitDeletedStorage(const QString &tdataPath);
 
-void MergeDeletedIntoSlice(
-	PeerId peer,
-	QVector<MTPMessage> &slice);
+[[nodiscard]] std::vector<MsgId> MergeDeletedIntoSlice(
+	not_null<History*> history,
+	QVector<MTPMessage> &slice,
+	bool older);
+
+bool MarkItemDeleted(not_null<HistoryItem*> item);
+
+void MarkItemsDeleted(
+	not_null<History*> history,
+	const std::vector<MsgId> &ids);
 
 } // namespace Netugram

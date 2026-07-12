@@ -567,6 +567,8 @@ PRIVATE
     netugram/netugram_prefs.h
     netugram/deleted_storage.cpp
     netugram/deleted_storage.h
+    netugram/edit_storage.cpp
+    netugram/edit_storage.h
     countries/countries_manager.cpp
     countries/countries_manager.h
     data/business/data_business_chatbots.cpp

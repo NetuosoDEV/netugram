@@ -973,6 +973,25 @@ void Updates::updateOnline(crl::time lastNonIdleTime) {
 	updateOnline(lastNonIdleTime, false);
 }
 
+void Updates::reassertGhostOffline() {
+	if (!Netugram::GhostMode() || Core::Quitting()) {
+		return;
+	}
+	api().request(base::take(_onlineRequest)).cancel();
+	_lastWasOnline = false;
+	_lastSetOnline = crl::now();
+	_onlineRequest = api().request(MTPaccount_UpdateStatus(
+		MTP_bool(true)
+	)).send();
+
+	const auto self = session().user();
+	self->updateLastseen(Data::LastseenStatus::OnlineTill(
+		base::unixtime::now() - 1));
+	session().changes().peerUpdated(
+		self,
+		Data::PeerUpdate::Flag::OnlineStatus);
+}
+
 bool Updates::isIdle() const {
 	return _isIdle.current();
 }

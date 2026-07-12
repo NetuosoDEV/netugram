@@ -666,6 +666,11 @@ private:
 	void updateServiceDependent(bool force = false);
 	void setServiceText(PreparedServiceText &&prepared);
 
+	[[nodiscard]] std::optional<TextWithEntities> composeKeptEditText(
+		const TextWithEntities &edited,
+		bool alreadyEdited,
+		bool isEdit);
+
 	void setStoryFields(not_null<Data::Story*> story);
 	void finishEdition(int oldKeyboardTop);
 	void finishEditionToEmpty();
